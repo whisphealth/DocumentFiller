@@ -1,5 +1,6 @@
 from .DocxFiller import DocxFiller
 from .XlsxFiller import XlsxFiller
+from .OdtFiller import OdtFiller
 
 
 class DocumentFillerFactory:
@@ -15,10 +16,12 @@ class DocumentFillerFactory:
         pass
 
     def inst(self, format: str):
-        if format == "docx":
+        if format == ".docx":
             return DocxFiller(self.DEBUG, self.PDF, self.PDF_ONLY)
-        elif format == "xlsx":
+        elif format == ".xlsx":
             return XlsxFiller(self.DEBUG, self.PDF, self.PDF_ONLY)
+        elif format == ".odt":
+            return OdtFiller(self.DEBUG, self.PDF, self.PDF_ONLY)
         else:
             if self.DEBUG:
                 print(f"INFO - File format not supported so ignored: {format}")

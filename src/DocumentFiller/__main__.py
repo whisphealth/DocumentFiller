@@ -1,8 +1,9 @@
 from argparse import ArgumentParser
 from genericpath import isdir, isfile
 from json import load, loads
-from re import search, sub
+from re import sub
 from .DocFillerFactory import DocumentFillerFactory
+from os.path import splitext, split
 
 
 def parse_path(path_in: list, path_out: str) -> zip:
@@ -18,9 +19,7 @@ def parse_path(path_in: list, path_out: str) -> zip:
     elif isdir(path_out):
         path_out = path_out + ("/" if (path_out[-1:] != "/") else "")
 
-        r_path_out = [
-            path_out + search(r"[^\/]+?\..+?$", f).group(0) for f in path_in
-        ]
+        r_path_out = [path_out + split(f)[1] for f in path_in]
     elif isfile(path_out) and len(path_in) == 1:
         r_path_out = [path_out]
     else:
@@ -94,7 +93,7 @@ def main():
     dff = DocumentFillerFactory(args.debug, args.pdf, args.pdfonly)
     # Calling the function
     for file_in, file_out in parse_path(args.input, args.output):
-        doc_filler = dff.inst(search(r"[^\.]+?$", file_in).group(0))
+        doc_filler = dff.inst(splitext(file_in)[1])
         if doc_filler:
             doc_filler.fill(file_in, json, file_out)
 
