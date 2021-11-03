@@ -2,9 +2,12 @@ from re import sub, findall, search
 from os.path import exists, splitext, split
 from subprocess import run
 from zipfile import ZipFile
-from odf.opendocument import OpenDocument, load
+
+from odf.style import Style, TextProperties
+from odf.opendocument import OpenDocumentText, load
 from odf import text as odfText
-from odf.element import Text
+from odf.element import Element, Text
+
 from .DocFillerFamily import DocumentFillerFamilly
 
 
@@ -23,7 +26,47 @@ class OdtFiller(DocumentFillerFamilly):
         self.PDF = pdf
         self.PDF_ONLY = pdf_only
 
-    def __replace_text(self, doc: OpenDocument, tags: dict) -> OpenDocument:
+    def __recursive_get_text(self, ele) -> list:
+        """
+        Parcour recursively the childs of an element and return a list of
+        childs that are Text and contain a flag
+        """
+        if isinstance(ele, Text):
+            if search(r"{{[^{}]+?}}", ele.data):
+                return ele
+        elif ele:
+            return list(map(self.__recursive_get_text, ele.childNodes))
+
+    def __recursive_get_parents(self, ele, child_list) -> dict:
+        """
+        Parcour recursively the childs of an element and return a dictionary
+        of all the parents of each childs
+        """
+        parents = {}
+        child = [i for i in ele.childNodes if i in child_list]
+        future_parents = [i for i in ele.childNodes if "childNodes" in dir(i)]
+
+        for i in child:
+            parents[i] = ele
+        for i in future_parents:
+            for k, j in self.__recursive_get_parents(i, child_list).items():
+                parents[k] = j
+
+        return parents
+
+    def __flatten(self, S) -> list:
+        """
+        Flatten a list recursively
+        """
+        if S == []:
+            return S
+        if isinstance(S[0], list):
+            return self.__flatten(S[0]) + self.__flatten(S[1:])
+        return S[:1] + self.__flatten(S[1:])
+
+    def __replace_text(
+        self, doc: OpenDocumentText, tags: dict
+    ) -> OpenDocumentText:
         """
         Function that replace le flags in text with the values associated to
         the flag in values
@@ -43,27 +86,17 @@ class OdtFiller(DocumentFillerFamilly):
             i for i in elements if search(r"{{[^{}]+?}}", str(i))
         ]
 
-        def recursive_get_text(ele):
-            if type(ele) == Text:
-                if search(r"{{[^{}]+?}}", ele.data):
-                    return ele
-            else:
-                result = []
-                for child in ele.childNodes:
-                    res = recursive_get_text(child)
-                    if res:
-                        if type(res) == Text:
-                            result.append(res)
-                        else:
-                            result += res
-                return result
+        flagged_text_elements = self.__flatten(
+            list(map(self.__recursive_get_text, flagged_elements))
+        )
+        flagged_text_elements = [i for i in flagged_text_elements if i]
 
-        flagged_text_elements = []
-        for ele in flagged_elements:
-            if type(ele) == Text:
-                flagged_text_elements.append(ele)
-            else:
-                flagged_text_elements += recursive_get_text(ele)
+        flagged_parent_text_elements = {}
+        for i in flagged_elements:
+            for j, k in self.__recursive_get_parents(
+                i, flagged_text_elements
+            ).items():
+                flagged_parent_text_elements[j] = k
 
         for text in flagged_text_elements:
             # If there is no flags, no need to check for them
@@ -80,8 +113,10 @@ class OdtFiller(DocumentFillerFamilly):
                 + self.AFTER_FLAG,
                 text.data,
             ):
-                pass
-                # text = self.__underline(text, under_tags)
+                parent_text = flagged_parent_text_elements[text]
+                parent_text = self.__underline(
+                    text, parent_text, under_tags, doc
+                )
             elif search(
                 self.BEFORE_FLAG
                 + "CHECK"
@@ -105,7 +140,7 @@ class OdtFiller(DocumentFillerFamilly):
 
         return doc
 
-    def __clean_formatting(self, path: str):
+    def __clean_formatting(self, path: str) -> str:
         with ZipFile(path) as in_zip, ZipFile(
             ".clean".join(splitext(path)), "w"
         ) as out_zip:
@@ -206,52 +241,67 @@ class OdtFiller(DocumentFillerFamilly):
                     text = text.replace(flag, value_2)
         return text
 
-    def __underline(self, element: Text, values: dict):
+    def __underline(
+        self,
+        element: Text,
+        parent_element: Element,
+        values: dict,
+        doc: OpenDocumentText,
+    ):
         """
         For each underline key found in the values, we remove the key while
         keeping the text inside and if the underline value is true, we will
         add the underline subelement to the parent of the paragraph that
         contain the key
         """
-        pass
-        """
-        for key, value in values.items():
-            under_key = (
-                self.BEFORE_FLAG
-                + key
-                + self.SEPARATOR
-                + ".*?"
-                + self.AFTER_FLAG
+
+        if "underline" not in doc._styles_dict.keys():
+            # Create underline if it doesn't already exist
+            u_style = Style(name="underline", family="text")
+            u_style.addElement(
+                TextProperties(
+                    attributes={
+                        "textunderlinestyle": "solid",
+                        "textunderlinewidth": "auto",
+                        "textunderlinecolor": "font-color",
+                    }
+                )
+            )
+            doc.automaticstyles.addElement(u_style)
+
+        # Apply the style
+
+        text = element.data
+        text_list = sub(
+            "(" + self.BEFORE_FLAG + ")|(" + self.AFTER_FLAG + ")",
+            "|BLEG|",
+            text,
+        ).split("|BLEG|")
+
+        step = 0 if text[:2] != "{{" else 1
+
+        element.data = ""
+
+        for index, sub_text in enumerate(text_list):
+            p_text = sub(
+                "^.+" + self.SEPARATOR + "(?=[^" + self.SEPARATOR + "]+$)",
+                "",
+                sub_text,
+            )
+            if (
+                index % 2 == step
+                and p_text in values.keys()
+                and values[p_text]
+            ):
+                p_stylename = ""
+                p_text = sub_text
+            else:
+                p_stylename = "underline"
+            parent_element.addElement(
+                odfText.Span(stylename=p_stylename, text=p_text)
             )
 
-            for i in tree.iter():
-                if isinstance(i.text, str) and search(under_key, i.text):
-
-                    if self.DEBUG:
-                        print(
-                            f"KEY - Cleaned and underlined {i.text} ", end=""
-                        )
-
-                    i.text = sub(
-                        self.BEFORE_FLAG + key + self.SEPARATOR,
-                        "",
-                        sub(self.AFTER_FLAG, "", i.text),
-                    )
-
-                    if self.DEBUG:
-                        print(f"with {i.text}")
-
-                    if value:
-
-                        # Underlining trick
-                        pr = tree.find("{*}rPr")
-                        etree.SubElement(
-                            pr,
-                            "{" + ns["w"] + "}u",
-                            {"{" + ns["w"] + "}val": "single"},
-                        )
-        """
-        return element
+        return parent_element
 
     def __check_boxes(self, text: str, values: dict) -> str:
         """
@@ -261,14 +311,19 @@ class OdtFiller(DocumentFillerFamilly):
         for key, value in values.items():
             if key[:6] != "CHECK_":
                 continue
+
             simple_key = self.BEFORE_FLAG + key + self.AFTER_FLAG
             new_value = "✓" if value else "□"
+
             if self.DEBUG:
                 print(f"KEY - Checked replaced {simple_key} with {new_value}")
+
             text = text.replace(simple_key, new_value)
         return text
 
-    def fill_document(self, src_path: str, values: dict, dest_path: str):
+    def fill_document(
+        self, src_path: str, values: dict, dest_path: str
+    ) -> None:
         """
         Function that fill a document by replacing flags and put the result in
         an other directory
