@@ -15,13 +15,15 @@ class DocumentFillerFactory:
         self.PDF_ONLY = pdfonly
         pass
 
-    def inst(self, format: str):
-        if format == ".docx":
+    def inst(self, extention: str):
+        if self.__ext_equal(extention, "docx"):
             return DocxFiller(self.DEBUG, self.PDF, self.PDF_ONLY)
-        elif format == ".xlsx":
+        elif self.__ext_equal(extention, "xlsx"):
             return XlsxFiller(self.DEBUG, self.PDF, self.PDF_ONLY)
-        elif format == ".odt":
+        elif self.__ext_equal(extention, "odt"):
             return OdtFiller(self.DEBUG, self.PDF, self.PDF_ONLY)
-        else:
-            if self.DEBUG:
-                print(f"INFO - File format not supported so ignored: {format}")
+        elif self.DEBUG:
+            print(f"INFO - File format not supported so ignored: {extention}")
+
+    def __ext_equal(self, ext1: str, ext2: str) -> bool:
+        return ext1 in [ext2, "." + ext2]
