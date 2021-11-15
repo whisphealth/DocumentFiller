@@ -84,13 +84,13 @@ def main():
             )
     else:
         try:
-            json = load(open(args.json))
+            json = load(open(args.json, encoding="utf-8"))
         except Exception:
             raise Exception("Json file is not parsable")
 
     # DocFiller
-
     dff = DocumentFillerFactory(args.debug, args.pdf, args.pdfonly)
+
     # Calling the function
     for file_in, file_out in parse_path(args.input, args.output):
         doc_filler = dff.inst(splitext(file_in)[1])

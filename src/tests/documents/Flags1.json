@@ -1,0 +1,9 @@
+{
+    "NAME": "Mathieu",
+    "ADDRESS": "Rue du fromage baguette",
+    "UNDER_A": true,
+    "UNDER_B": true,
+    "UNDER_C": false,
+    "CHECK_A": true,
+    "CHECK_B": false
+}

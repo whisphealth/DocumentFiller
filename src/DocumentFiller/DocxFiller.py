@@ -1,8 +1,8 @@
 from re import sub, findall, search, DOTALL, finditer
 from zipfile import ZipFile
 from os.path import exists
-from lxml import etree
 from subprocess import run
+from lxml import etree
 from .DocFillerFamily import DocumentFillerFamilly
 
 
@@ -21,7 +21,7 @@ class DocxFiller(DocumentFillerFamilly):
         self.PDF = pdf
         self.PDF_ONLY = pdf_only
 
-    def __replace_text(self, text: bytes, tags: dict) -> bytes:
+    def replace_text(self, text: bytes, tags: dict) -> bytes:
         """
         Function that replace le flags in text with the values associated to
         the flag in values
@@ -31,14 +31,14 @@ class DocxFiller(DocumentFillerFamilly):
         :return: (String) Xml Text with all the flags replaced
         """
 
-        text = self.__clean_formatting(text.decode("utf-8")).encode("utf-8")
+        text = self.clean_formatting(text.decode("utf-8")).encode("utf-8")
 
         try:
             root = etree.fromstring(text)
         except Exception:
             raise Exception("The cleaning process broke the xml")
 
-        under_tags, check_tags, simple_tags = self.__split_tags(tags)
+        under_tags, check_tags, simple_tags = self.split_tags(tags)
 
         child_to_parent = {c: p for p in root.iter() for c in p}
 
@@ -58,7 +58,7 @@ class DocxFiller(DocumentFillerFamilly):
                 i.text,
             ):
                 p = child_to_parent[i]
-                p = self.__underline(p, under_tags, root.nsmap)
+                p = self.underline(p, under_tags, root.nsmap)
             elif search(
                 self.BEFORE_FLAG
                 + "CHECK"
@@ -67,7 +67,7 @@ class DocxFiller(DocumentFillerFamilly):
                 + self.AFTER_FLAG,
                 i.text,
             ):
-                i.text = self.__check_boxes(i.text, check_tags)
+                i.text = self.check_boxes(i.text, check_tags)
             elif search(
                 self.BEFORE_FLAG
                 + r".*?"
@@ -76,9 +76,9 @@ class DocxFiller(DocumentFillerFamilly):
                 + self.AFTER_FLAG,
                 i.text,
             ):
-                i.text = self.__split_replace(i.text, simple_tags)
+                i.text = self.split_replace(i.text, simple_tags)
             else:
-                i.text = self.__simple_replace(i.text, simple_tags)
+                i.text = self.simple_replace(i.text, simple_tags)
 
         return (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'.encode(
@@ -87,7 +87,7 @@ class DocxFiller(DocumentFillerFamilly):
             + etree.tostring(root, encoding="utf-8")
         )
 
-    def __split_tags(self, tags: dict):
+    def split_tags(self, tags: dict):
         """
         Split the tags and values in 3 categories:
         - underTags: Tags used to underline text
@@ -110,7 +110,7 @@ class DocxFiller(DocumentFillerFamilly):
 
         return under_tags, check_tags, simple_tags
 
-    def __simple_replace(self, text: str, values: dict) -> str:
+    def simple_replace(self, text: str, values: dict) -> str:
         """
         Look for the flags and replace them with there corresponding values
         """
@@ -124,7 +124,7 @@ class DocxFiller(DocumentFillerFamilly):
 
         return text
 
-    def __split_replace(self, text: str, values: dict) -> str:
+    def split_replace(self, text: str, values: dict) -> str:
         """
         Look for the splitted flags ( {{%FLAG_01%}}, {{%FLAG_02%}} ) and
         replace them with the correct value
@@ -152,7 +152,7 @@ class DocxFiller(DocumentFillerFamilly):
                     text = text.replace(flag, value_2)
         return text
 
-    def __underline(self, tree: etree, values: dict, ns) -> etree:
+    def underline(self, tree: etree, values: dict, ns) -> etree:
         """
         For each underline key found in the values, we remove the key while
         keeping the text inside and if the underline value is true, we will
@@ -198,7 +198,7 @@ class DocxFiller(DocumentFillerFamilly):
 
         return tree
 
-    def __check_boxes(self, text: str, values: dict) -> str:
+    def check_boxes(self, text: str, values: dict) -> str:
         """
         Look for a check tag and if there is, replace the tag with ✓ if the
         value is true and replaced the tag by □ in the other case.
@@ -213,7 +213,7 @@ class DocxFiller(DocumentFillerFamilly):
             text = text.replace(simple_key, new_value)
         return text
 
-    def __clean_formatting(self, text: str) -> str:
+    def clean_formatting(self, text: str) -> str:
         """
         Clean the formatting of the string to make it properly readable and
         editable by :
@@ -222,15 +222,15 @@ class DocxFiller(DocumentFillerFamilly):
           be applied, it won't affect the text next to the tag
         """
 
-        text = self.__remove_tags(text)
+        text = self.remove_tags(text)
 
-        text = self.__divide_paragraphs_btw_flags(text)
+        text = self.divide_paragraphs_btw_flags(text)
 
-        text = self.__divide_paragraphs(text)
+        text = self.divide_paragraphs(text)
 
         return text
 
-    def __remove_tags(self, text: str) -> str:
+    def remove_tags(self, text: str) -> str:
         """
         Cleaning the xml tags inside the flags so they can be read
         """
@@ -243,7 +243,7 @@ class DocxFiller(DocumentFillerFamilly):
 
         def striptags(m):
             return sub(
-                r"</w:t>.*?(<w:t>|<w:t [^>]*>)", "", m.group(0), flags=DOTALL
+                r"<w:t>.*?(</w:t>|<w:t [^>]*>)", "", m.group(0), flags=DOTALL
             )
 
         text = sub(r"{{(?:(?!}}).)*", striptags, text, flags=DOTALL)
@@ -260,7 +260,7 @@ class DocxFiller(DocumentFillerFamilly):
 
         return text
 
-    def __divide_paragraphs_btw_flags(self, text: str) -> str:
+    def divide_paragraphs_btw_flags(self, text: str) -> str:
         """
         When two flags are on the same paragraph, this function will separate
         them on different paragraphs so that one's formatting doesn't affect
@@ -307,7 +307,7 @@ class DocxFiller(DocumentFillerFamilly):
 
         return text
 
-    def __divide_paragraphs(self, text: str) -> str:
+    def divide_paragraphs(self, text: str) -> str:
         """
         Isolating the flags in a paragraph so that if any formatting should be
         applied, it won't affect the text next to the tag
@@ -431,7 +431,7 @@ class DocxFiller(DocumentFillerFamilly):
                     # Replace the text (to fill the document)
                     if in_zip_info.filename == "word/document.xml":
 
-                        content = self.__replace_text(content, values)
+                        content = self.replace_text(content, values)
 
                     # Try writing to the output file
                     try:

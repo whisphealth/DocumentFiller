@@ -1,10 +1,8 @@
-
 venv/
-
 build/
-
 dist/
-
-DocumentFiller.egg-info/
-
+src/DocumentFiller.egg-info/
 .vscode/
+src/tests/__pycache__
+.pytest_cache
+src/DocumentFiller/__pycache__

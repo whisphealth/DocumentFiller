@@ -21,7 +21,7 @@ class XlsxFiller(DocumentFillerFamilly):
         self.PDF = pdf
         self.PDF_ONLY = pdf_only
 
-    def __replace_text(self, text: bytes, tags: dict) -> bytes:
+    def replace_text(self, text: bytes, tags: dict) -> bytes:
         try:
             root = etree.fromstring(text)
         except Exception:
@@ -44,9 +44,9 @@ class XlsxFiller(DocumentFillerFamilly):
                 + self.AFTER_FLAG,
                 i.text,
             ):
-                i.text = self.__split_replace(i.text, tags)
+                i.text = self.split_replace(i.text, tags)
             else:
-                i.text = self.__simple_replace(i.text, tags)
+                i.text = self.simple_replace(i.text, tags)
 
         return (
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'.encode(
@@ -55,7 +55,7 @@ class XlsxFiller(DocumentFillerFamilly):
             + etree.tostring(root, encoding="utf-8")
         )
 
-    def __simple_replace(self, text: str, values: dict) -> str:
+    def simple_replace(self, text: str, values: dict) -> str:
         """
         Look for the flags and replace them with there corresponding values
         """
@@ -69,7 +69,7 @@ class XlsxFiller(DocumentFillerFamilly):
 
         return text
 
-    def __split_replace(self, text: str, values: dict) -> str:
+    def split_replace(self, text: str, values: dict) -> str:
         """
         Look for the splitted flags ( {{%FLAG_01%}}, {{%FLAG_02%}} ) and
         replace them with the correct value
@@ -142,7 +142,7 @@ class XlsxFiller(DocumentFillerFamilly):
                     if "xl/sharedStrings.xml" == in_zip_info.filename:
                         if self.DEBUG:
                             print(f"INFO - Modifying {in_zip_info.filename}")
-                        content = self.__replace_text(content, values)
+                        content = self.replace_text(content, values)
 
                     # Try writing to the output file
                     try:

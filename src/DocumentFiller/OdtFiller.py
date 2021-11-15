@@ -1,4 +1,4 @@
-from re import sub, findall, search
+from re import sub, findall, search, split as resplit
 from os.path import exists, splitext, split
 from subprocess import run
 from zipfile import ZipFile
@@ -26,7 +26,7 @@ class OdtFiller(DocumentFillerFamilly):
         self.PDF = pdf
         self.PDF_ONLY = pdf_only
 
-    def __recursive_get_text(self, ele) -> list:
+    def recursive_get_text(self, ele) -> list:
         """
         Parcour recursively the childs of an element and return a list of
         childs that are Text and contain a flag
@@ -35,9 +35,9 @@ class OdtFiller(DocumentFillerFamilly):
             if search(r"{{[^{}]+?}}", ele.data):
                 return ele
         elif ele:
-            return list(map(self.__recursive_get_text, ele.childNodes))
+            return list(map(self.recursive_get_text, ele.childNodes))
 
-    def __recursive_get_parents(self, ele, child_list) -> dict:
+    def recursive_get_parents(self, ele, child_list) -> dict:
         """
         Parcour recursively the childs of an element and return a dictionary
         of all the parents of each childs
@@ -49,22 +49,22 @@ class OdtFiller(DocumentFillerFamilly):
         for i in child:
             parents[i] = ele
         for i in future_parents:
-            for k, j in self.__recursive_get_parents(i, child_list).items():
+            for k, j in self.recursive_get_parents(i, child_list).items():
                 parents[k] = j
 
         return parents
 
-    def __flatten(self, S) -> list:
+    def flatten(self, S) -> list:
         """
         Flatten a list recursively
         """
         if S == []:
             return S
         if isinstance(S[0], list):
-            return self.__flatten(S[0]) + self.__flatten(S[1:])
-        return S[:1] + self.__flatten(S[1:])
+            return self.flatten(S[0]) + self.flatten(S[1:])
+        return S[:1] + self.flatten(S[1:])
 
-    def __replace_text(
+    def replace_text(
         self, doc: OpenDocumentText, tags: dict
     ) -> OpenDocumentText:
         """
@@ -76,7 +76,7 @@ class OdtFiller(DocumentFillerFamilly):
         :return: (String) Xml Text with all the flags replaced
         """
 
-        under_tags, check_tags, simple_tags = self.__split_tags(tags)
+        under_tags, check_tags, simple_tags = self.split_tags(tags)
 
         elements = doc.getElementsByType(odfText.H) + doc.getElementsByType(
             odfText.P
@@ -86,14 +86,14 @@ class OdtFiller(DocumentFillerFamilly):
             i for i in elements if search(r"{{[^{}]+?}}", str(i))
         ]
 
-        flagged_text_elements = self.__flatten(
-            list(map(self.__recursive_get_text, flagged_elements))
+        flagged_text_elements = self.flatten(
+            list(map(self.recursive_get_text, flagged_elements))
         )
         flagged_text_elements = [i for i in flagged_text_elements if i]
 
         flagged_parent_text_elements = {}
         for i in flagged_elements:
-            for j, k in self.__recursive_get_parents(
+            for j, k in self.recursive_get_parents(
                 i, flagged_text_elements
             ).items():
                 flagged_parent_text_elements[j] = k
@@ -114,7 +114,7 @@ class OdtFiller(DocumentFillerFamilly):
                 text.data,
             ):
                 parent_text = flagged_parent_text_elements[text]
-                parent_text = self.__underline(
+                parent_text = self.underline(
                     text, parent_text, under_tags, doc
                 )
             elif search(
@@ -125,7 +125,7 @@ class OdtFiller(DocumentFillerFamilly):
                 + self.AFTER_FLAG,
                 text.data,
             ):
-                text.data = self.__check_boxes(text.data, check_tags)
+                text.data = self.check_boxes(text.data, check_tags)
             elif search(
                 self.BEFORE_FLAG
                 + r".*?"
@@ -134,13 +134,13 @@ class OdtFiller(DocumentFillerFamilly):
                 + self.AFTER_FLAG,
                 text.data,
             ):
-                text.data = self.__split_replace(text.data, simple_tags)
+                text.data = self.split_replace(text.data, simple_tags)
             else:
-                text.data = self.__simple_replace(text.data, simple_tags)
+                text.data = self.simple_replace(text.data, simple_tags)
 
         return doc
 
-    def __clean_formatting(self, path: str) -> str:
+    def clean_formatting(self, path: str) -> str:
         with ZipFile(path) as in_zip, ZipFile(
             ".clean".join(splitext(path)), "w"
         ) as out_zip:
@@ -176,7 +176,7 @@ class OdtFiller(DocumentFillerFamilly):
                         )
         return ".clean".join(splitext(path))
 
-    def __split_tags(self, tags: dict):
+    def split_tags(self, tags: dict):
         """
         Split the tags and values in 3 categories:
         - underTags: Tags used to underline text
@@ -199,7 +199,7 @@ class OdtFiller(DocumentFillerFamilly):
 
         return under_tags, check_tags, simple_tags
 
-    def __simple_replace(self, text: str, values: dict) -> str:
+    def simple_replace(self, text: str, values: dict) -> str:
         """
         Look for the flags and replace them with there corresponding values
         """
@@ -213,7 +213,7 @@ class OdtFiller(DocumentFillerFamilly):
 
         return text
 
-    def __split_replace(self, text: str, values: dict) -> str:
+    def split_replace(self, text: str, values: dict) -> str:
         """
         Look for the splitted flags ( {{%FLAG_01%}}, {{%FLAG_02%}} ) and
         replace them with the correct value
@@ -241,7 +241,7 @@ class OdtFiller(DocumentFillerFamilly):
                     text = text.replace(flag, value_2)
         return text
 
-    def __underline(
+    def underline(
         self,
         element: Text,
         parent_element: Element,
@@ -272,38 +272,43 @@ class OdtFiller(DocumentFillerFamilly):
         # Apply the style
 
         text = element.data
-        text_list = sub(
-            "(" + self.BEFORE_FLAG + ")|(" + self.AFTER_FLAG + ")",
-            "|BLEG|",
-            text,
-        ).split("|BLEG|")
+        text_list = resplit(self.BEFORE_FLAG + "|" + self.AFTER_FLAG, text)
 
-        step = 0 if text[:2] != "{{" else 1
+        step = 0 if text[:2] == "{{" else 1
 
         element.data = ""
 
         for index, sub_text in enumerate(text_list):
-            p_text = sub(
-                "^.+" + self.SEPARATOR + "(?=[^" + self.SEPARATOR + "]+$)",
-                "",
-                sub_text,
+            key_regex = (
+                "^UNDER"
+                + self.SEPARATOR
+                + ".*"
+                + self.SEPARATOR
+                + "(?=[^"
+                + self.SEPARATOR
+                + "]+$)"
             )
-            if (
-                index % 2 == step
-                and p_text in values.keys()
-                and values[p_text]
-            ):
-                p_stylename = ""
-                p_text = sub_text
-            else:
-                p_stylename = "underline"
-            parent_element.addElement(
-                odfText.Span(stylename=p_stylename, text=p_text)
-            )
+            is_under = bool(search("^UNDER" + self.SEPARATOR, sub_text))
+
+            p_stylename = ""
+            p_text = sub_text
+
+            if is_under and index % 2 == step:
+                key = search(key_regex, sub_text).group(0)[:-1]
+                if values.get(key):
+                    p_stylename = "underline"
+                    p_text = sub(key_regex, "", sub_text)
+
+            if p_text and p_text != "":
+                if self.DEBUG:
+                    print("UNDERLINEAPPEND", p_stylename, p_text)
+                parent_element.addElement(
+                    odfText.Span(stylename=p_stylename, text=p_text)
+                )
 
         return parent_element
 
-    def __check_boxes(self, text: str, values: dict) -> str:
+    def check_boxes(self, text: str, values: dict) -> str:
         """
         Look for a check tag and if there is, replace the tag with ✓ if the
         value is true and replaced the tag by □ in the other case.
@@ -348,7 +353,7 @@ class OdtFiller(DocumentFillerFamilly):
         if not exists(src_path):
             raise FileNotFoundError("The source file does not exist")
 
-        src_path = self.__clean_formatting(src_path)
+        src_path = self.clean_formatting(src_path)
 
         # Open the odt file
         doc = load(src_path)
@@ -356,7 +361,7 @@ class OdtFiller(DocumentFillerFamilly):
         if self.DEBUG:
             print(f"INFO - Read {src_path}")
 
-        doc = self.__replace_text(doc, values)
+        doc = self.replace_text(doc, values)
 
         doc.save(dest_path)
 
