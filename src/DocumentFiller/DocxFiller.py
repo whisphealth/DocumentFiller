@@ -3,6 +3,7 @@ from zipfile import ZipFile
 from os.path import exists
 from subprocess import run
 from lxml import etree
+from multiprocessing import Lock
 from .DocFillerFamily import DocumentFillerFamilly
 
 
@@ -13,13 +14,19 @@ class DocxFiller(DocumentFillerFamilly):
     AFTER_FLAG = "}}"
     SEPARATOR = "_"  # MUST BE ANYTHING OTHER THAN A NUMBER !!!!!
     DEBUG = PDF = PDF_ONLY = False
+    LOCK = None
 
     def __init__(
-        self, debug: bool = False, pdf: bool = False, pdf_only: bool = False
+        self,
+        debug: bool = False,
+        pdf: bool = False,
+        pdf_only: bool = False,
+        lock: Lock = None,
     ):
         self.DEBUG = debug
         self.PDF = pdf
         self.PDF_ONLY = pdf_only
+        self.LOCK = lock
 
     def replace_text(self, text: bytes, tags: dict) -> bytes:
         """
@@ -411,6 +418,9 @@ class DocxFiller(DocumentFillerFamilly):
         if not exists(src_path):
             raise FileNotFoundError("The source file does not exist")
 
+        if self.LOCK:
+            self.LOCK.acquire()
+
         # Open the two zip files
         with ZipFile(src_path) as in_zip, ZipFile(dest_path, "w") as out_zip:
             # For each files in the input zip file
@@ -444,6 +454,9 @@ class DocxFiller(DocumentFillerFamilly):
 
                     if self.DEBUG:
                         print(f"INFO - Wrote {in_zip_info.filename}")
+
+        if self.LOCK:
+            self.LOCK.release()
 
         if self.PDF or self.PDF_ONLY:
             run(

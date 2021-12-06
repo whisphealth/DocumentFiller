@@ -2,6 +2,7 @@ from re import sub, findall, search, split as resplit
 from os.path import exists, splitext, split
 from subprocess import run
 from zipfile import ZipFile
+from multiprocessing import Lock
 
 from odf.style import Style, TextProperties
 from odf.opendocument import OpenDocumentText, load
@@ -18,13 +19,19 @@ class OdtFiller(DocumentFillerFamilly):
     AFTER_FLAG = "}}"
     SEPARATOR = "_"  # MUST BE ANYTHING OTHER THAN A NUMBER !!!!!
     DEBUG = PDF = PDF_ONLY = False
+    LOCK = None
 
     def __init__(
-        self, debug: bool = False, pdf: bool = False, pdf_only: bool = False
+        self,
+        debug: bool = False,
+        pdf: bool = False,
+        pdf_only: bool = False,
+        lock: Lock = None,
     ):
         self.DEBUG = debug
         self.PDF = pdf
         self.PDF_ONLY = pdf_only
+        self.LOCK = lock
 
     def recursive_get_text(self, ele) -> list:
         """
@@ -141,9 +148,10 @@ class OdtFiller(DocumentFillerFamilly):
         return doc
 
     def clean_formatting(self, path: str) -> str:
-        with ZipFile(path) as in_zip, ZipFile(
-            ".clean".join(splitext(path)), "w"
-        ) as out_zip:
+        out_file_name = ".clean".join(splitext(path))
+        if exists(out_file_name):
+            return out_file_name
+        with ZipFile(path) as in_zip, ZipFile(out_file_name, "w") as out_zip:
             # For each files in the input zip file
             for in_zip_info in in_zip.infolist():
                 with in_zip.open(in_zip_info) as in_file:
@@ -174,7 +182,7 @@ class OdtFiller(DocumentFillerFamilly):
                             f"Can't write the file {in_zip_info.filename} "
                             f"in {path}"
                         )
-        return ".clean".join(splitext(path))
+        return out_file_name
 
     def split_tags(self, tags: dict):
         """
@@ -274,11 +282,9 @@ class OdtFiller(DocumentFillerFamilly):
         text = element.data
         text_list = resplit(self.BEFORE_FLAG + "|" + self.AFTER_FLAG, text)
 
-        step = 0 if text[:2] == "{{" else 1
-
         element.data = ""
 
-        for index, sub_text in enumerate(text_list):
+        for sub_text in text_list:
             key_regex = (
                 "^UNDER"
                 + self.SEPARATOR
@@ -293,15 +299,21 @@ class OdtFiller(DocumentFillerFamilly):
             p_stylename = ""
             p_text = sub_text
 
-            if is_under and index % 2 == step:
+            if is_under:
                 key = search(key_regex, sub_text).group(0)[:-1]
                 if values.get(key):
                     p_stylename = "underline"
-                    p_text = sub(key_regex, "", sub_text)
+
+            p_text = sub(key_regex, "", sub_text)
 
             if p_text and p_text != "":
                 if self.DEBUG:
-                    print("UNDERLINEAPPEND", p_stylename, p_text)
+                    debug_message = (
+                        "underlined"
+                        if p_stylename == "underline"
+                        else "ignored"
+                    )
+                    print("UNDERLINEAPPEND", debug_message, p_text)
                 parent_element.addElement(
                     odfText.Span(stylename=p_stylename, text=p_text)
                 )
@@ -353,10 +365,15 @@ class OdtFiller(DocumentFillerFamilly):
         if not exists(src_path):
             raise FileNotFoundError("The source file does not exist")
 
+        if self.LOCK:
+            self.LOCK.acquire()
+
         src_path = self.clean_formatting(src_path)
 
-        # Open the odt file
         doc = load(src_path)
+
+        if self.LOCK:
+            self.LOCK.release()
 
         if self.DEBUG:
             print(f"INFO - Read {src_path}")
@@ -367,8 +384,6 @@ class OdtFiller(DocumentFillerFamilly):
 
         if self.DEBUG:
             print(f"INFO - Saved {dest_path}")
-
-        run(["rm", src_path, "-f"])
 
         if self.PDF or self.PDF_ONLY:
             run(

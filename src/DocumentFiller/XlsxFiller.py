@@ -4,6 +4,7 @@ from subprocess import run
 from .DocFillerFamily import DocumentFillerFamilly
 from re import findall, search, sub
 from lxml import etree
+from multiprocessing import Lock
 
 
 class XlsxFiller(DocumentFillerFamilly):
@@ -13,13 +14,19 @@ class XlsxFiller(DocumentFillerFamilly):
     AFTER_FLAG = "}}"
     SEPARATOR = "_"  # MUST BE ANYTHING OTHER THAN A NUMBER !!!!!
     DEBUG = PDF = PDF_ONLY = False
+    LOCK = None
 
     def __init__(
-        self, debug: bool = False, pdf: bool = False, pdf_only: bool = False
+        self,
+        debug: bool = False,
+        pdf: bool = False,
+        pdf_only: bool = False,
+        lock: Lock = None,
     ):
         self.DEBUG = debug
         self.PDF = pdf
         self.PDF_ONLY = pdf_only
+        self.LOCK = lock
 
     def replace_text(self, text: bytes, tags: dict) -> bytes:
         try:
@@ -122,6 +129,9 @@ class XlsxFiller(DocumentFillerFamilly):
         if not exists(src_path):
             raise FileNotFoundError("The source file does not exist")
 
+        if self.LOCK:
+            self.LOCK.acquire()
+
         with ZipFile(src_path) as in_zip, ZipFile(dest_path, "w") as out_zip:
             # For each files in the input zip file
             for in_zip_info in in_zip.infolist():
@@ -155,6 +165,9 @@ class XlsxFiller(DocumentFillerFamilly):
 
                     if self.DEBUG:
                         print(f"INFO - Wrote {in_zip_info.filename}")
+
+        if self.LOCK:
+            self.LOCK.release()
 
         # PDF Stuff
         if self.PDF or self.PDF_ONLY:

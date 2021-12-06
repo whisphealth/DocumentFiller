@@ -20,15 +20,15 @@ Download the release file DocumentFiller-... .whl
 
 ### CLI
 
-Usage: `python3 -m DocumentFiller [-d|--debug] [--pdf] [--pdfonly] -j|-json|-jsonpath jsonpath [-o|-output outputpath] inputfile(s) `
+Usage: `DocumentFiller [-d|--debug] [--pdf] [--pdfonly] -j|-json|-jsonpath jsonpath [-o|-output outputpath] inputfile(s) `
 
 Example:
 
-`python3 -m DocumentFiller -j "{\"key\": \"value\"}" -o out.docx in.docx`
+`DocumentFiller -j "{\"key\": \"value\"}" -o out.docx in.docx`
 
 This command will replace all the `{{KEY}}` present in the `in.docx` with `value` and save the result in `out.docx`
 
-`python3 -m DocumentFiller -j values.json document.docx`
+`DocumentFiller -j values.json document.docx`
 
 This command will replace all the keys defined in `values.json` present in `document.docx` and save the result in `document.out.docx`
 
@@ -80,4 +80,3 @@ If the value `UNDER_FLAG` in the json is true, the text associated will be under
 ## Know issues
 
 - PDF conversion is done by Libre Office so some formatting issues might apply
-
