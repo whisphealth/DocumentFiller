@@ -69,7 +69,7 @@ def test_split_tags():
 
     flags = json.load(open(doc_path + "Flags1.json", "r"))
 
-    under_tags, check_tags, simple_tags = dff_odt.split_tags(flags)
+    under_tags, check_tags, simple_tags, if_tags = dff_odt.split_tags(flags)
 
     goal_under_tags = {"UNDER_A": True, "UNDER_B": True, "UNDER_C": False}
 
@@ -119,3 +119,28 @@ def test_check_boxes():
     replaced_text = dff_odt.check_boxes(text, flags)
 
     assert replaced_text == goal_text
+
+
+def test_if_replace():
+    dff_odt = OdtFiller()
+    flags_1 = {"IF_MANGER": True, "IF_FAIM": False}
+    flags_2 = {"IF_MANGER": False, "IF_FAIM": True}
+
+    text_1 = "J'ai {{IF_MANGER_THEN_pas faim_ELSE_très faim_END}} aujourd'hui"
+    text_2 = (
+        "J'ai {{IF_FAIM_THEN_plutot faim_ELSE_mal au ventre_END}} aujourd'hui"
+    )
+    goal_text_1_1 = "J'ai pas faim aujourd'hui"
+    goal_text_1_2 = "J'ai mal au ventre aujourd'hui"
+    goal_text_2_1 = "J'ai très faim aujourd'hui"
+    goal_text_2_2 = "J'ai plutot faim aujourd'hui"
+
+    replaced_text_1_1 = dff_odt.if_replace(text_1, flags_1)
+    replaced_text_1_2 = dff_odt.if_replace(text_2, flags_1)
+    replaced_text_2_1 = dff_odt.if_replace(text_1, flags_2)
+    replaced_text_2_2 = dff_odt.if_replace(text_2, flags_2)
+
+    assert replaced_text_1_1 == goal_text_1_1
+    assert replaced_text_1_2 == goal_text_1_2
+    assert replaced_text_2_1 == goal_text_2_1
+    assert replaced_text_2_2 == goal_text_2_2

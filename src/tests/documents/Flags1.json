@@ -5,5 +5,7 @@
     "UNDER_B": true,
     "UNDER_C": false,
     "CHECK_A": true,
-    "CHECK_B": false
+    "CHECK_B": false,
+    "IF_MANGER": true,
+    "IF_FAIM": false
 }

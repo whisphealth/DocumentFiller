@@ -1,4 +1,4 @@
-from DocumentFiller.__main__ import parse_path
+from DocumentFiller.main import parse_path
 
 
 def test_parse_path():

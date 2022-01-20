@@ -83,7 +83,7 @@ class OdtFiller(DocumentFillerFamilly):
         :return: (String) Xml Text with all the flags replaced
         """
 
-        under_tags, check_tags, simple_tags = self.split_tags(tags)
+        under_tags, check_tags, simple_tags, if_tags = self.split_tags(tags)
 
         elements = doc.getElementsByType(odfText.H) + doc.getElementsByType(
             odfText.P
@@ -142,6 +142,23 @@ class OdtFiller(DocumentFillerFamilly):
                 text.data,
             ):
                 text.data = self.split_replace(text.data, simple_tags)
+            elif search(
+                self.BEFORE_FLAG
+                + r".+?"
+                + self.SEPARATOR
+                + "THEN"
+                + self.SEPARATOR
+                + r".+?"
+                + self.SEPARATOR
+                + "ELSE"
+                + self.SEPARATOR
+                + r".+?"
+                + self.SEPARATOR
+                + "END"
+                + self.AFTER_FLAG,
+                text.data,
+            ):
+                text.data = self.if_replace(text.data, if_tags)
             else:
                 text.data = self.simple_replace(text.data, simple_tags)
 
@@ -196,16 +213,19 @@ class OdtFiller(DocumentFillerFamilly):
         under_tags = {}
         check_tags = {}
         simple_tags = {}
+        if_tags = {}
 
         for key, val in tags.items():
             if search("UNDER" + self.SEPARATOR + ".*?", key):
                 under_tags[key] = val
             elif search("CHECK" + self.SEPARATOR + ".*?", key):
                 check_tags[key] = val
+            elif search("IF" + self.SEPARATOR + ".+?", key):
+                if_tags[key] = val
             else:
                 simple_tags[key] = val
 
-        return under_tags, check_tags, simple_tags
+        return under_tags, check_tags, simple_tags, if_tags
 
     def simple_replace(self, text: str, values: dict) -> str:
         """
@@ -336,6 +356,50 @@ class OdtFiller(DocumentFillerFamilly):
                 print(f"KEY - Checked replaced {simple_key} with {new_value}")
 
             text = text.replace(simple_key, new_value)
+        return text
+
+    def if_replace(self, text: str, values: dict) -> str:
+        """
+        Looks for an if flag and if there is, replace the tag with the value
+        defined by the flag.
+        """
+        for key, value in values.items():
+            if key[:3] != "IF_":
+                continue
+            if_key = (
+                self.BEFORE_FLAG
+                + key
+                + self.SEPARATOR
+                + "THEN"
+                + self.SEPARATOR
+                + r".+?"
+                + self.SEPARATOR
+                + "ELSE"
+                + self.SEPARATOR
+                + r".+?"
+                + self.SEPARATOR
+                + "END"
+                + self.AFTER_FLAG
+            )
+
+            if search(if_key, text):
+                if value:
+                    k1 = "THEN"
+                    k2 = "ELSE"
+                else:
+                    k1 = "ELSE"
+                    k2 = "END"
+
+                repl_key = (
+                    k1 + self.SEPARATOR + r".*?(?=" + self.SEPARATOR + k2 + ")"
+                )
+                replacement = (
+                    search(repl_key, text)
+                    .group(0)
+                    .replace(k1 + self.SEPARATOR, "")
+                )
+                text = sub(if_key, replacement, text)
+                break
         return text
 
     def fill_document(

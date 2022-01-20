@@ -67,6 +67,8 @@ def test_split_tags():
     goal_simple_tags = {
         "NAME": "Mathieu",
         "ADDRESS": "Rue du fromage baguette",
+        "IF_MANGER": True,
+        "IF_FAIM": False,
     }
 
     assert under_tags == goal_under_tags
