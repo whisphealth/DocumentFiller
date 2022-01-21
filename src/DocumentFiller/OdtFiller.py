@@ -148,11 +148,11 @@ class OdtFiller(DocumentFillerFamilly):
                 + self.SEPARATOR
                 + "THEN"
                 + self.SEPARATOR
-                + r".+?"
+                + r".*?"
                 + self.SEPARATOR
                 + "ELSE"
                 + self.SEPARATOR
-                + r".+?"
+                + r".*?"
                 + self.SEPARATOR
                 + "END"
                 + self.AFTER_FLAG,
@@ -372,17 +372,21 @@ class OdtFiller(DocumentFillerFamilly):
                 + self.SEPARATOR
                 + "THEN"
                 + self.SEPARATOR
-                + r".+?"
+                + r".*?"
                 + self.SEPARATOR
                 + "ELSE"
                 + self.SEPARATOR
-                + r".+?"
+                + r".*?"
                 + self.SEPARATOR
                 + "END"
                 + self.AFTER_FLAG
             )
 
             if search(if_key, text):
+
+                focus_text = search(if_key, text).group(0)
+                old_focus_text = focus_text
+
                 if value:
                     k1 = "THEN"
                     k2 = "ELSE"
@@ -394,12 +398,17 @@ class OdtFiller(DocumentFillerFamilly):
                     k1 + self.SEPARATOR + r".*?(?=" + self.SEPARATOR + k2 + ")"
                 )
                 replacement = (
-                    search(repl_key, text)
+                    search(repl_key, focus_text)
                     .group(0)
                     .replace(k1 + self.SEPARATOR, "")
                 )
-                text = sub(if_key, replacement, text)
-                break
+                if self.DEBUG:
+                    print("IF APPEND", focus_text, "TO ", end="")
+                focus_text = sub(if_key, replacement, focus_text)
+                if self.DEBUG:
+                    print(focus_text)
+
+                text = text.replace(old_focus_text, focus_text)
         return text
 
     def fill_document(
