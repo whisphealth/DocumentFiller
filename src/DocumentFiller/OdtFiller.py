@@ -231,13 +231,18 @@ class OdtFiller(DocumentFillerFamilly):
         """
         Look for the flags and replace them with there corresponding values
         """
+        found = False
         for key, value in values.items():
             simple_key = self.BEFORE_FLAG + key + self.AFTER_FLAG
 
             if search(simple_key, text):
                 if self.DEBUG:
                     print(f"KEY - Simple Replaced {simple_key} with {value}")
+                found = True
                 text = text.replace(simple_key, str(value))
+
+        if not found:
+            text = sub(self.BEFORE_FLAG + ".+?" + self.AFTER_FLAG, "", text)
 
         return text
 
@@ -246,6 +251,7 @@ class OdtFiller(DocumentFillerFamilly):
         Look for the splitted flags ( {{%FLAG_01%}}, {{%FLAG_02%}} ) and
         replace them with the correct value
         """
+        found = False
         for key, value in values.items():
             split_key = (
                 self.BEFORE_FLAG
@@ -256,6 +262,7 @@ class OdtFiller(DocumentFillerFamilly):
             )
 
             if search(split_key, text):
+                found = True
                 flags = findall(split_key, text)
                 for flag in flags:
                     nb = int(
@@ -267,6 +274,16 @@ class OdtFiller(DocumentFillerFamilly):
                     if self.DEBUG:
                         print(f"KEY - Split Replaced {flag} with {value_2}")
                     text = text.replace(flag, value_2)
+        if not found:
+            text = sub(
+                self.BEFORE_FLAG
+                + r".+?"
+                + self.SEPARATOR
+                + r"\d+?"
+                + self.AFTER_FLAG,
+                "",
+                text,
+            )
         return text
 
     def underline(
@@ -299,31 +316,37 @@ class OdtFiller(DocumentFillerFamilly):
 
         # Apply the style
 
+        # Split text into list of potential underlined stuff
         text = element.data
         text_list = resplit(self.BEFORE_FLAG + "|" + self.AFTER_FLAG, text)
 
+        # Clear the previous text
         element.data = ""
 
         for sub_text in text_list:
             key_regex = (
                 "^UNDER"
                 + self.SEPARATOR
-                + ".*"
+                + ".+?"
                 + self.SEPARATOR
-                + "(?=[^"
-                + self.SEPARATOR
-                + "]+$)"
+                # + "(?=[^"
+                # + self.SEPARATOR
+                # + "]+$)"
             )
+            # Test if start with UNDER_
             is_under = bool(search("^UNDER" + self.SEPARATOR, sub_text))
 
+            # Default style
             p_stylename = ""
             p_text = sub_text
 
+            # If is under, test to apply underline style
             if is_under:
                 key = search(key_regex, sub_text).group(0)[:-1]
                 if values.get(key):
                     p_stylename = "underline"
 
+            # Remove the UNDER_KEY_ part
             p_text = sub(key_regex, "", sub_text)
 
             if p_text and p_text != "":
@@ -345,6 +368,7 @@ class OdtFiller(DocumentFillerFamilly):
         Look for a check tag and if there is, replace the tag with ✓ if the
         value is true and replaced the tag by □ in the other case.
         """
+        found = False
         for key, value in values.items():
             if key[:6] != "CHECK_":
                 continue
@@ -355,7 +379,15 @@ class OdtFiller(DocumentFillerFamilly):
             if self.DEBUG:
                 print(f"KEY - Checked replaced {simple_key} with {new_value}")
 
-            text = text.replace(simple_key, new_value)
+            new_text = text.replace(simple_key, new_value)
+            if new_text != text:
+                found = True
+            text = new_text
+
+        if not found:
+            text = sub(
+                self.BEFORE_FLAG + "CHECK_.+?" + self.AFTER_FLAG, "", text
+            )
         return text
 
     def if_replace(self, text: str, values: dict) -> str:
@@ -363,6 +395,7 @@ class OdtFiller(DocumentFillerFamilly):
         Looks for an if flag and if there is, replace the tag with the value
         defined by the flag.
         """
+        found = False
         for key, value in values.items():
             if key[:3] != "IF_":
                 continue
@@ -384,6 +417,7 @@ class OdtFiller(DocumentFillerFamilly):
 
             if search(if_key, text):
 
+                found = True
                 focus_text = search(if_key, text).group(0)
                 old_focus_text = focus_text
 
@@ -409,6 +443,25 @@ class OdtFiller(DocumentFillerFamilly):
                     print(focus_text)
 
                 text = text.replace(old_focus_text, focus_text)
+
+        if not found:
+            text = sub(
+                self.BEFORE_FLAG
+                + ".+?"
+                + self.SEPARATOR
+                + "THEN"
+                + self.SEPARATOR
+                + r".*?"
+                + self.SEPARATOR
+                + "ELSE"
+                + self.SEPARATOR
+                + r".*?"
+                + self.SEPARATOR
+                + "END"
+                + self.AFTER_FLAG,
+                "",
+                text,
+            )
         return text
 
     def fill_document(
