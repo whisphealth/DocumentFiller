@@ -329,9 +329,9 @@ class OdtFiller(DocumentFillerFamilly):
                 + self.SEPARATOR
                 + ".+?"
                 + self.SEPARATOR
-                # + "(?=[^"
-                # + self.SEPARATOR
-                # + "]+$)"
+                + "[^"
+                + self.SEPARATOR
+                + "]+$"
             )
             # Test if start with UNDER_
             is_under = bool(search("^UNDER" + self.SEPARATOR, sub_text))
@@ -343,11 +343,10 @@ class OdtFiller(DocumentFillerFamilly):
             # If is under, test to apply underline style
             if is_under:
                 key = search(key_regex, sub_text).group(0)[:-1]
+                p_text = sub_text.split(self.SEPARATOR)[-1]
+                key = self.SEPARATOR.join(key.split(self.SEPARATOR)[:-1])
                 if values.get(key):
                     p_stylename = "underline"
-
-            # Remove the UNDER_KEY_ part
-            p_text = sub(key_regex, "", sub_text)
 
             if p_text and p_text != "":
                 if self.DEBUG:
@@ -395,7 +394,6 @@ class OdtFiller(DocumentFillerFamilly):
         Looks for an if flag and if there is, replace the tag with the value
         defined by the flag.
         """
-        found = False
         for key, value in values.items():
             if key[:3] != "IF_":
                 continue
@@ -416,8 +414,6 @@ class OdtFiller(DocumentFillerFamilly):
             )
 
             if search(if_key, text):
-
-                found = True
                 focus_text = search(if_key, text).group(0)
                 old_focus_text = focus_text
 
@@ -444,24 +440,39 @@ class OdtFiller(DocumentFillerFamilly):
 
                 text = text.replace(old_focus_text, focus_text)
 
-        if not found:
-            text = sub(
-                self.BEFORE_FLAG
-                + ".+?"
-                + self.SEPARATOR
-                + "THEN"
-                + self.SEPARATOR
-                + r".*?"
-                + self.SEPARATOR
-                + "ELSE"
-                + self.SEPARATOR
-                + r".*?"
-                + self.SEPARATOR
-                + "END"
-                + self.AFTER_FLAG,
-                "",
-                text,
+        for txt in findall(
+            self.BEFORE_FLAG
+            + r".*?"
+            + self.SEPARATOR
+            + "THEN"
+            + self.SEPARATOR
+            + r".*?"
+            + self.SEPARATOR
+            + "ELSE"
+            + self.SEPARATOR
+            + r".*?"
+            + self.SEPARATOR
+            + "END"
+            + self.AFTER_FLAG,
+            text,
+        ):
+            if self.DEBUG:
+                print("IF NOT FOUND", text, end="")
+            text = text.replace(
+                txt,
+                search(
+                    "ELSE"
+                    + self.SEPARATOR
+                    + r".*?(?="
+                    + self.SEPARATOR
+                    + "END)",
+                    txt,
+                )
+                .group(0)
+                .replace("ELSE" + self.SEPARATOR, ""),
             )
+            if self.DEBUG:
+                print(" REPLACED WITH ", text)
         return text
 
     def fill_document(
